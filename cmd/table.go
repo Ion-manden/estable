@@ -137,6 +137,11 @@ var tableCmd = &cobra.Command{
 				if !ok {
 					cellText = ""
 				}
+
+				if len(cellText) > 50 {
+					cellText = fmt.Sprint(cellText[:50], "...")
+				}
+
 				color := tcell.ColorWhite
 				if ci == 0 {
 					if doc.Path("found").Data().(bool) {
