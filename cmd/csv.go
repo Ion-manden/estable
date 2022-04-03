@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
@@ -25,22 +26,25 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/elastic/go-elasticsearch/v7"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// tableCmd represents the table command
-var tableCmd = &cobra.Command{
-	Use:   "table",
-	Short: "Create a table of es data from doc ids from stdin", Long: `Creates a table view of data from elasticsearch.
-  Doc ids are provided by stdin
-  "cat es_doc_ids.csv | estable table"
+var outFile string
 
-  Fields are specified with the --field flag, multiple fields can be used by setting --field multiple times
-  "--field name --field age"`,
+// csvCmd represents the csv command
+var csvCmd = &cobra.Command{
+	Use:   "csv",
+	Short: "A brief description of your command",
+	Long: `A longer description that spans multiple lines and likely contains examples
+and usage of using your command. For example:
+
+Cobra is a CLI library for Go that empowers applications.
+This application is a tool to generate the needed files
+to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("csv called")
+
 		address := viper.GetString("es_address")
 		user := viper.GetString("es_user")
 		password := viper.GetString("es_password")
@@ -107,17 +111,21 @@ var tableCmd = &cobra.Command{
 			log.Fatalf("Error: %s", res.String())
 		}
 
-		app := tview.NewApplication()
-		table := tview.NewTable().SetBorders(true)
+		w := csv.NewWriter(bufio.NewWriter(os.Stdout))
 
-		for ci, col := range fields {
-			table.SetCell(
-				0,
-				ci,
-				tview.NewTableCell(strings.Replace(col, "_source.", "", 1)).
-					SetTextColor(tcell.ColorYellow).
-					SetAlign(tview.AlignCenter),
-			)
+		if outFile != "" {
+			file, err := os.OpenFile(outFile, os.O_CREATE|os.O_WRONLY, 0755)
+			if err != nil {
+				log.Fatalf("error opening file: %s", err)
+			}
+			defer file.Close()
+
+			w = csv.NewWriter(bufio.NewWriter(file))
+		}
+
+		err = w.Write(fields)
+		if err != nil {
+			log.Fatal(err)
 		}
 
 		b, err := io.ReadAll(res.Body)
@@ -128,6 +136,7 @@ var tableCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("error parsing json: %s", err)
 		}
+
 		for ri, doc := range parsedJson.Search("docs").Children() {
 			ri++
 
@@ -138,62 +147,35 @@ var tableCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 
-			for ci, field := range fields {
+			cells := []string{}
+			for _, field := range fields {
 				cellText, ok := doc.Path(field).Data().(string)
 				if !ok {
 					cellText = ""
 				}
 
-				if len(cellText) > 50 {
-					cellText = fmt.Sprint(cellText[:50], "...")
-				}
-
-				color := tcell.ColorWhite
-				if ci == 0 {
-					if doc.Path("found").Data().(bool) {
-						color = tcell.ColorGreen
-					} else {
-						color = tcell.ColorRed
-					}
-				}
-
-				table.SetCell(
-					ri,
-					ci,
-					tview.NewTableCell(cellText).
-						SetTextColor(color).
-						SetAlign(tview.AlignCenter),
-				)
+				cells = append(cells, cellText)
 			}
-		}
 
-		table.Select(0, 0).SetFixed(1, 1).SetDoneFunc(func(key tcell.Key) {
-			if key == tcell.KeyEscape {
-				app.Stop()
+			err = w.Write(cells)
+			if err != nil {
+				log.Fatal(err)
 			}
-			if key == tcell.KeyEnter {
-				table.SetSelectable(true, true)
-			}
-		}).SetSelectedFunc(func(row int, column int) {
-			table.GetCell(row, column).SetTextColor(tcell.ColorRed)
-			table.SetSelectable(false, false)
-		})
-		if err := app.SetRoot(table, true).EnableMouse(true).Run(); err != nil {
-			panic(err)
 		}
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(tableCmd)
+	rootCmd.AddCommand(csvCmd)
 
 	// Here you will define your flags and configuration settings.
+	csvCmd.Flags().StringVar(&outFile, "out", "", "File to save output instead of stdin")
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// tableCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// csvCmd.PersistentFlags().String("foo", "", "A help for foo")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// tableCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// csvCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

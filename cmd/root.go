@@ -26,6 +26,8 @@ import (
 )
 
 var cfgFile string
+var fields []string
+var inputFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -51,6 +53,8 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/estable.yaml)")
+	rootCmd.PersistentFlags().StringArrayVarP(&fields, "field", "", []string{}, "Field to show in table")
+	rootCmd.PersistentFlags().StringVarP(&inputFile, "file", "f", "", "File to use input instead of stdin")
 
 	rootCmd.PersistentFlags().StringP("address", "a", "", "Elasticsearch address (http://localhost:9200)")
 	viper.BindPFlag("address", rootCmd.PersistentFlags().Lookup("es_address"))
