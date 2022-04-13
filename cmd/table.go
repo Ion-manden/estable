@@ -139,7 +139,8 @@ var tableCmd = &cobra.Command{
 			}
 
 			for ci, field := range fields {
-				cellText, ok := doc.Path(field).Data().(string)
+				cell, ok := doc.Path(field).Data().(interface{})
+				cellText := fmt.Sprint(cell)
 				if !ok {
 					cellText = ""
 				}
